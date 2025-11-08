@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Daily Roster - Gelanigama</title>
+
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js"></script>
+
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; background:#f4f9fc; margin:0; color:#222; }
+    header { background:#007acc; color:#fff; padding:12px 0; text-align:center; font-weight:700; position:sticky; top:0; }
+    .wrap { max-width:480px; margin:18px auto; padding:12px; background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+    .controls { display:flex; gap:8px; justify-content:space-between; align-items:center; }
+    input[type="date"] { flex:1; padding:8px; border-radius:8px; border:1px solid #ccc; }
+    button { background:#007acc; color:#fff; border:none; padding:8px 10px; border-radius:8px; cursor:pointer; }
+    button:hover{background:#005f9e}
+    table { width:100%; border-collapse:collapse; margin-top:12px; }
+    th, td { padding:8px; border-bottom:1px solid #e6eef5; text-align:center; }
+    th { background:#abd6de; font-weight:700; }
+    .no-data{ text-align:center; color:#777; padding:16px 0; }
+    @media (max-width:360px){ th, td{padding:6px; font-size:13px} }
+  </style>
+</head>
+<body>
+  <header>Daily Roster Viewer</header>
+  <div class="wrap">
+    <div class="controls">
+      <button onclick="changeDay(-1)">◀ Prev</button>
+      <input type="date" id="rosterDate">
+      <button onclick="changeDay(1)">Next ▶</button>
+    </div>
+
+    <div id="rosterTable" class="no-data">Loading roster...</div>
+  </div>
+
+<script>
+/* ============ FIREBASE CONFIG ============
+ Replace the firebaseConfig below with the same config used in roster.html
+ ========================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyC8k7TA2JT95MzoXd2pqoz6ZDzO5G5bfy4",
+  authDomain: "gelanigama-tolling-roster.firebaseapp.com",
+  databaseURL: "https://gelanigama-tolling-roster-default-rtdb.firebaseio.com",
+  projectId: "gelanigama-tolling-roster",
+  storageBucket: "gelanigama-tolling-roster.firebasestorage.app",
+  messagingSenderId: "1241821233",
+  appId: "1:1241821233:web:ab96a584f67e0f32ade510"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let rosterData = {};
+let currentDate = new Date();
+
+/* load from firebase */
+function loadRoster(){
+  db.ref('dailyRosterData').once('value').then(snap=>{
+    rosterData = snap.val() || {};
+    renderTable();
+  }).catch(err=>{
+    document.getElementById('rosterTable').innerHTML = `<div class="no-data">Error loading data: ${err.message}</div>`;
+  });
+}
+
+function renderTable(){
+  const dateStr = currentDate.toISOString().split('T')[0];
+  document.getElementById('rosterDate').value = dateStr;
+  const list = rosterData[dateStr];
+  const container = document.getElementById('rosterTable');
+
+  if(!list || list.length === 0){
+    container.innerHTML = `<div class="no-data">No roster found for ${dateStr}</div>`;
+    return;
+  }
+
+  let html = '<table><tr><th>Teller ID</th><th>Booth</th></tr>';
+  list.forEach(it => html += `<tr><td>${it.teller || '-'}</td><td>${it.booth || '-'}</td></tr>`);
+  html += '</table>';
+  container.innerHTML = html;
+}
+
+function changeDay(offset){
+  currentDate.setDate(currentDate.getDate() + offset);
+  renderTable();
+}
+
+document.getElementById('rosterDate').addEventListener('change', e=>{
+  currentDate = new Date(e.target.value);
+  renderTable();
+});
+
+/* initial load */
+loadRoster();
+</script>
+</body>
+</html>
