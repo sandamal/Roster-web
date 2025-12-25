@@ -1,47 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#007acc">
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Daily Roster - Gelanigama</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#007acc">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Daily Roster - Gelanigama</title>
 
-  <!-- Firebase SDK (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js"></script>
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js"></script>
 
-  <style>
-    body { font-family: "Segoe UI", Arial, sans-serif; background:#f4f9fc; margin:0; color:#222; }
-    header { background:#007acc; color:#fff; padding:12px 0; text-align:center; font-weight:700; position:sticky; top:0; }
-    .wrap { max-width:480px; margin:18px auto; padding:12px; background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
-    .controls { display:flex; gap:8px; justify-content:space-between; align-items:center; }
-    input[type="date"] { flex:1; padding:8px; border-radius:8px; border:1px solid #ccc; }
-    button { background:#007acc; color:#fff; border:none; padding:8px 10px; border-radius:8px; cursor:pointer; }
-    button:hover{background:#005f9e}
-    table { width:100%; border-collapse:collapse; margin-top:12px; }
-    th, td { padding:8px; border-bottom:1px solid #e6eef5; text-align:center; }
-    th { background:#abd6de; font-weight:700; }
-    .no-data{ text-align:center; color:#777; padding:16px 0; }
-    @media (max-width:360px){ th, td{padding:6px; font-size:13px} }
-  </style>
+<style>
+body { font-family: "Segoe UI", Arial, sans-serif; background:#f4f9fc; margin:0; color:#222; }
+header { background:#007acc; color:#fff; padding:12px 0; text-align:center; font-weight:700; position:sticky; top:0; }
+.wrap { max-width:480px; margin:18px auto; padding:12px; background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+.controls { display:flex; gap:8px; justify-content:space-between; align-items:center; }
+input[type="date"] { flex:1; padding:8px; border-radius:8px; border:1px solid #ccc; }
+button { background:#007acc; color:#fff; border:none; padding:8px 10px; border-radius:8px; cursor:pointer; }
+button:hover{background:#005f9e}
+table { width:100%; border-collapse:collapse; margin-top:12px; }
+th, td { padding:8px; border-bottom:1px solid #e6eef5; text-align:center; }
+th { background:#abd6de; font-weight:700; }
+.no-data{ text-align:center; color:#777; padding:16px 0; }
+.created-at { text-align:right; font-size:12px; color:#555; margin-top:6px; }
+@media (max-width:360px){ th, td{padding:6px; font-size:13px} }
+</style>
 </head>
 <body>
-  <header>Daily Roster Viewer</header>
-  <div class="wrap">
-    <div class="controls">
-      <button onclick="changeDay(-1)">◀ Prev</button>
-      <input type="date" id="rosterDate">
-      <button onclick="changeDay(1)">Next ▶</button>
-    </div>
-
-    <div id="rosterTable" class="no-data">Loading roster...</div>
+<header>Daily Roster Viewer</header>
+<div class="wrap">
+  <div class="controls">
+    <button onclick="changeDay(-1)">◀ Prev</button>
+    <input type="date" id="rosterDate">
+    <button onclick="changeDay(1)">Next ▶</button>
   </div>
 
+  <div id="rosterTable" class="no-data">Loading roster...</div>
+  <div id="createDate" class="created-at"></div>
+</div>
+
 <script>
-/* ============ FIREBASE CONFIG ============
- Replace the firebaseConfig below with the same config used in roster.html
- ========================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyC8k7TA2JT95MzoXd2pqoz6ZDzO5G5bfy4",
   authDomain: "gelanigama-tolling-roster.firebaseapp.com",
@@ -57,7 +56,7 @@ const db = firebase.database();
 let rosterData = {};
 let currentDate = new Date();
 
-/* load from firebase */
+/* Load from Firebase */
 function loadRoster(){
   db.ref('dailyRosterData').once('value').then(snap=>{
     rosterData = snap.val() || {};
@@ -70,18 +69,22 @@ function loadRoster(){
 function renderTable(){
   const dateStr = currentDate.toISOString().split('T')[0];
   document.getElementById('rosterDate').value = dateStr;
-  const list = rosterData[dateStr];
+  const entry = rosterData[dateStr];
   const container = document.getElementById('rosterTable');
+  const createDiv = document.getElementById('createDate');
 
-  if(!list || list.length === 0){
+  if(!entry || !entry.roster || entry.roster.length === 0){
     container.innerHTML = `<div class="no-data">No roster found for ${dateStr}</div>`;
+    createDiv.innerHTML = '';
     return;
   }
 
   let html = '<table><tr><th>Teller ID</th><th>Booth</th></tr>';
-  list.forEach(it => html += `<tr><td>${it.teller || '-'}</td><td>${it.booth || '-'}</td></tr>`);
+  entry.roster.forEach(it => html += `<tr><td>${it.teller || '-'}</td><td>${it.booth || '-'}</td></tr>`);
   html += '</table>';
   container.innerHTML = html;
+
+  createDiv.innerHTML = entry.createdAt ? `Roster Created: ${new Date(entry.createdAt).toLocaleString()}` : '';
 }
 
 function changeDay(offset){
@@ -94,9 +97,12 @@ document.getElementById('rosterDate').addEventListener('change', e=>{
   renderTable();
 });
 
-/* initial load */
+/* Initial load */
 loadRoster();
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js");
 }
