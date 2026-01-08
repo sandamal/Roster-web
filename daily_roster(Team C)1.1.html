@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#007acc">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Daily Roster - Gelanigama</title>
+
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js"></script>
+
+<style>
+:root{
+  --primary:#0d6efd;
+  --primary-dark:#084298;
+  --bg:#f2f6fb;
+  --card:#ffffff;
+  --border:#e3ebf5;
+  --text:#1f2937;
+  --muted:#6b7280;
+}
+
+body{
+  margin:0;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+
+header{
+  background:linear-gradient(135deg,#0d6efd,#3b82f6);
+  color:#fff;
+  padding:14px 10px;
+  text-align:center;
+  font-size:18px;
+  font-weight:700;
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+
+.wrap{
+  max-width:480px;
+  margin:16px auto;
+  padding:14px;
+}
+
+.controls{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-bottom:12px;
+}
+
+.controls button{
+  flex:0 0 auto;
+  background:var(--primary);
+  color:#fff;
+  border:none;
+  padding:10px 12px;
+  border-radius:10px;
+  font-size:14px;
+  cursor:pointer;
+}
+
+.controls button:hover{
+  background:var(--primary-dark);
+}
+
+.controls input[type="date"]{
+  flex:1;
+  padding:10px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  font-size:14px;
+}
+
+.card{
+  background:var(--card);
+  border-radius:14px;
+  box-shadow:0 6px 16px rgba(0,0,0,0.06);
+  padding:12px;
+}
+
+.no-data{
+  text-align:center;
+  color:var(--muted);
+  padding:20px 10px;
+  font-size:14px;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:4px;
+}
+
+th{
+  text-align:center;
+  font-size:13px;
+  color:var(--muted);
+  padding:8px 6px;
+  border-bottom:1px solid var(--border);
+}
+
+td{
+  padding:10px 6px;
+  border-bottom:1px solid var(--border);
+  font-size:15px;
+}
+
+tr:last-child td{
+  border-bottom:none;
+}
+
+.teller{
+  font-weight:600;
+  color:#111827;
+}
+
+.booth{
+  text-align:right;
+  font-weight:500;
+  color:#2563eb;
+}
+
+.created-at{
+  text-align:right;
+  font-size:12px;
+  color:var(--muted);
+  margin-top:6px;
+}
+
+@media(max-width:360px){
+  header{font-size:16px}
+  td{font-size:14px}
+}
+</style>
+
+</head>
+<body>
+<header>Daily Roster Viewer</header>
+<div class="wrap">
+  <div class="controls">
+    <button onclick="changeDay(-1)">◀ Prev</button>
+    <input type="date" id="rosterDate">
+    <button onclick="changeDay(1)">Next ▶</button>
+  </div>
+
+<div class="card">
+  <div id="rosterTable" class="no-data">Loading roster...</div>
+  <div id="createDate" class="created-at"></div>
+</div>
+
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBZ60dxReiv-iBYd9yaxTsynJRv2FP3NR4",
+    authDomain: "gelanigama-roster-team-c.firebaseapp.com",
+    databaseURL: "https://gelanigama-roster-team-c-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "gelanigama-roster-team-c",
+    storageBucket: "gelanigama-roster-team-c.firebasestorage.app",
+    messagingSenderId: "580663609040",
+    appId: "1:580663609040:web:f5967f9768159f660840d5"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let rosterData = {};
+let currentDate = new Date();
+
+/* Load from Firebase */
+function loadRoster(){
+  db.ref('dailyRosterData').once('value').then(snap=>{
+    rosterData = snap.val() || {};
+    renderTable();
+  }).catch(err=>{
+    document.getElementById('rosterTable').innerHTML = `<div class="no-data">Error loading data: ${err.message}</div>`;
+  });
+}
+
+function renderTable(){
+  const dateStr = currentDate.toISOString().split('T')[0];
+  document.getElementById('rosterDate').value = dateStr;
+  const entry = rosterData[dateStr];
+  const container = document.getElementById('rosterTable');
+  const createDiv = document.getElementById('createDate');
+
+  if(!entry || !entry.roster || entry.roster.length === 0){
+    container.innerHTML = `<div class="no-data">No roster found for ${dateStr}</div>`;
+    createDiv.innerHTML = '';
+    return;
+  }
+
+let html = '<table><tr><th>Teller</th><th style="text-align:right">Booth</th></tr>';
+
+  entry.roster.forEach(it => {
+  html += `
+    <tr>
+      <td class="teller">${it.teller || '-'}</td>
+      <td class="booth">${it.booth || '-'}</td>
+    </tr>
+  `;
+});
+
+  html += '</table>';
+  container.innerHTML = html;
+
+  createDiv.innerHTML = entry.createdAt ? `Roster Created: ${new Date(entry.createdAt).toLocaleString()}` : '';
+}
+
+function changeDay(offset){
+  currentDate.setDate(currentDate.getDate() + offset);
+  renderTable();
+}
+
+document.getElementById('rosterDate').addEventListener('change', e=>{
+  currentDate = new Date(e.target.value);
+  renderTable();
+});
+
+/* Initial load */
+loadRoster();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+</body>
+</html>
