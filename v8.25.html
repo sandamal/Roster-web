@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Roster Manager V8 - Gelanigama Interchange</title>
+<!-- XLSX and html2pdf (for Excel + PDF) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<!-- Firebase compat -->
+<script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database-compat.js"></script>
+
+<style>
+body { font-family: Arial, sans-serif; background:#f4f6f8; margin:18px; color:#333; }
+.container { max-width:1100px; margin:auto; background:#fff; padding:18px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.08); }
+h2 { text-align:center; margin:6px 0 18px; }
+label { display:inline-block; width:130px; vertical-align:top; margin-top:8px; font-weight:600; }
+input[type="text"], input[type="date"], select { width:calc(100% - 140px); padding:8px; margin:6px 0 12px; border-radius:6px; border:1px solid #ccc; }
+.row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.controls { margin:12px 0; display:flex; gap:8px; flex-wrap:wrap; }
+button { background:#007bff; color:#fff; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; }
+button:hover{background:#0056b3}
+table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
+th, td { border:1px solid #ccc; padding:6px 8px; text-align:center; }
+th { background:#007bff; color:#fff; }
+.day-duty { background:#cde7f0; color:#000; }
+.night-duty { background:#abd6de; color:#000; }
+.off-duty { background:#fff0f0; color:#333; }
+.booth-header { background:#ffc107; color:#000; font-weight:700; }
+.logo { width:90px; display:block; margin:0 auto 6px; }
+.app-footer { text-align:center; color:#999; font-size:13px; margin-top:20px; font-style:italic; }
+.settings-toggle-btn { background:#444; color:white; padding:8px 14px; border-radius:6px; cursor:pointer; margin-bottom:12px; border:none; }
+#settingsPanel { display:none; background:#eef5ff; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #c9d8ff; }
+
+@media (max-width:800px){
+  label { width:100%; }
+  input[type="text"], input[type="date"], select { width:100%; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<img src="https://images.seeklogo.com/logo-png/44/1/expressway-sri-lanka-logo-png_seeklogo-443925.png"
+alt="Logo" class="logo" onerror="this.style.display='none'">
+<h2>Gelanigama Interchange — Roster Manager V8</h2>
+
+<div style="text-align:center; margin-bottom:8px;">
+<button class="settings-toggle-btn" onclick="toggleSettings()">⚙️ Settings</button>
+</div>
+
+<div class="row"><label>Start Date</label>
+<input type="date" id="startDate"></div>
+<div class="row"><label>End Date</label>
+<input type="date" id="endDate"></div>
+
+<!-- Settings Panel -->
+<div id="settingsPanel">
+<div class="row">
+  <label>Team</label>
+  <select id="teamSelect">
+    <option value="">-- Select Team --</option>
+    <option value="A">Team A</option>
+    <option value="B">Team B</option>
+    <option value="C">Team C</option>
+  </select>
+</div>
+
+<div class="row">
+  <label>Team PIN</label>
+  <input type="password" id="teamPin" placeholder="Enter Team PIN">
+</div>
+
+<div class="row">
+  <button onclick="loginTeam()">🔐 Login Team</button>
+</div>
+
+<div class="row"><label>Base Date</label><input type="date" id="baseDate"></div>
+<div class="row"><label>Base Rotation</label>
+<select id="baseRotation">
+<option value="day1">Day 1</option><option value="day2">Day 2</option><option value="day3">Day 3</option><option value="day4">Day 4</option>
+<option value="night1">Night 1</option><option value="night2">Night 2</option><option value="night3">Night 3</option><option value="night4">Night 4</option>
+<option value="off1">Off 1</option><option value="off2">Off 2</option><option value="off3">Off 3</option><option value="off4">Off 4</option>
+</select></div>
+
+<div class="row"><label>Day Booths (comma)</label>
+<input type="text" id="dayBooths" value="J7,K10,L7,J10,K7,J2-10,M7,J2-7,M9"></div>
+<div class="row"><label>Night Booths (comma)</label>
+<input type="text" id="nightBooths" value="K19,J19,L22,M19,K21,J2-19,J21,L19,M22"></div>
+<div class="row"><label>Teller IDs (comma)</label>
+<input type="text" id="tellerList" value="171,164,173,167,163,190,170,197,192"></div>
+
+<div class="controls">
+<button onclick="generateRoster()">📅 Generate Roster</button>
+<button onclick="exportToExcel()">📤 Export Excel</button>
+<button onclick="exportToPDF()">📄 Export PDF (A4)</button>
+<button onclick="manualSaveSettings()">💾 Save Settings</button>
+<button onclick="pushToFirebase()">☁️ Sync to Cloud</button>
+</div>
+</div>
+
+<div id="output"></div>
+<div class="app-footer">Developed by <b>Sandamal Epasinghe</b> – <i>Roster Manager V8.24</i></div>
+</div>
+
+<script>
+const TEAM_PINS = {
+  A: "1111",
+  B: "@epa",
+  C: "3333"
+};
+
+let lastGeneratedRoster = {};
+
+/* ----------- Firebase ----------- */
+const firebaseConfigs = {
+  A: {
+    apiKey: "AIzaSyANN1IPnC6vODqIWiOpZgWutnP-LlmH48s",
+    authDomain: "gelanigama-roster-team-a.firebaseapp.com",
+    databaseURL: "https://gelanigama-roster-team-a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "gelanigama-roster-team-a",
+    storageBucket: "gelanigama-roster-team-a.firebasestorage.app",
+    messagingSenderId: "806907017930",
+    appId: "1:806907017930:web:0c8265ba9beda797cc9233"
+  },
+  B: {
+   apiKey: "AIzaSyC8k7TA2JT95MzoXd2pqoz6ZDzO5G5bfy4",
+   authDomain: "gelanigama-tolling-roster.firebaseapp.com",
+   databaseURL: "https://gelanigama-tolling-roster-default-rtdb.firebaseio.com",
+   projectId: "gelanigama-tolling-roster",
+   storageBucket: "gelanigama-tolling-roster.firebasestorage.app",
+   messagingSenderId: "1241821233",
+   appId: "1:1241821233:web:ab96a584f67e0f32ade510"
+  },
+  C: {
+    apiKey: "AIzaSyBZ60dxReiv-iBYd9yaxTsynJRv2FP3NR4",
+    authDomain: "gelanigama-roster-team-c.firebaseapp.com",
+    databaseURL: "https://gelanigama-roster-team-c-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "gelanigama-roster-team-c",
+    storageBucket: "gelanigama-roster-team-c.firebasestorage.app",
+    messagingSenderId: "580663609040",
+    appId: "1:580663609040:web:f5967f9768159f660840d5"
+  }
+};
+
+let firebaseApp = null;
+let db = null;
+let currentTeam = "A";
+
+function initFirebase(team){
+  if(firebaseApp){
+    firebaseApp.delete();
+  }
+  firebaseApp = firebase.initializeApp(firebaseConfigs[team], "team-" + team);
+  db = firebase.database(firebaseApp);
+  currentTeam = team;
+  loadSettings();
+  console.log("🔥 Firebase connected to Team", team);
+}
+
+function loginTeam(){
+
+  const team = document.getElementById("teamSelect").value;
+  const pin  = document.getElementById("teamPin").value.trim();
+
+  if(!team){
+    alert("❗ Please select a team");
+    return;
+  }
+
+  if(!pin){
+    alert("❗ Enter team PIN");
+    return;
+  }
+
+  if(TEAM_PINS[team] !== pin){
+    alert("❌ Wrong PIN for Team " + team);
+    return;
+  }
+
+  initFirebase(team);
+  alert("✅ Logged in to Team " + team);
+}
+
+
+
+
+ 
+const rotationCycle = ['day1','day2','day3','day4','night1','night2','night3','night4','off1','off2','off3','off4'];
+
+/* Load settings */
+function loadSettings(){
+  db.ref("appSettings").once("value").then(snap=>{
+    const s = snap.val(); if(!s) return;
+    baseDate.value=s.baseDate||""; baseRotation.value=s.baseRotation||"day1";
+    startDate.value=s.startDate||""; endDate.value=s.endDate||"";
+    dayBooths.value=s.dayBooths||""; nightBooths.value=s.nightBooths||""; tellerList.value=s.tellerList||"";
+    if(startDate.value && endDate.value){ setTimeout(()=>generateRoster(false),300); }
+  });
+}
+
+
+/* Settings toggle */
+function toggleSettings(){
+  const panel=document.getElementById("settingsPanel");
+  if(panel.style.display==="block"){ panel.style.display="none"; return; }
+  const pwd=prompt("Enter Settings Password:");
+  if(pwd==="1234"){ panel.style.display="block"; }else{ alert("❌ Incorrect Password!"); }
+}
+
+/* Save settings */
+function saveSettings(){ return db.ref("appSettings").set({
+  baseDate: baseDate.value, baseRotation: baseRotation.value,
+  startDate: startDate.value, endDate: endDate.value,
+  dayBooths: dayBooths.value, nightBooths: nightBooths.value,
+  tellerList: tellerList.value
+}); }
+function manualSaveSettings(){
+  if(!db){
+    alert("Firebase not ready");
+    return;
+  }
+  saveSettings().then(()=>alert("✅ Settings saved to Team " + currentTeam));
+}
+
+
+/* Smart roster save */
+function saveRosterSmart(roster){
+  const s=startDate.value; const e=endDate.value;
+  if(!s||!e) return;
+  let updates={};
+  let d=new Date(s); let endD=new Date(e);
+  while(d<=endD){
+    const ds=d.toISOString().split("T")[0];
+    updates[ds]={ roster: roster[ds] || [], createdAt: new Date().toISOString() };
+    d.setDate(d.getDate()+1);
+  }
+  db.ref("dailyRosterData").update(updates)
+    .then(()=>alert("✅ Roster synced to Firebase"))
+    .catch(err=>alert("❌ Firebase error: " + err.message));
+}
+
+function generateRoster(showAlert = true) {
+
+  if (!startDate.value || !endDate.value) {
+    if (showAlert) alert("Please select start & end date");
+    return;
+  }
+
+  const baseD  = new Date(baseDate.value || startDate.value);
+  const startD = new Date(startDate.value);
+  const endD   = new Date(endDate.value);
+
+  const dayBoothsArr   = dayBooths.value.split(',').map(x => x.trim()).filter(Boolean);
+  const nightBoothsArr = nightBooths.value.split(',').map(x => x.trim()).filter(Boolean);
+  const tellers        = tellerList.value.split(',').map(x => x.trim()).filter(Boolean);
+
+  let rotIndex = rotationCycle.indexOf(baseRotation.value);
+  if (rotIndex < 0) rotIndex = 0;
+
+  /* -------------------------------
+     STEP 1 : Pre-rotate tellers
+     Base Date → Start Date (ONLY duty days)
+  -------------------------------- */
+  let dutyCount = 0;
+  let tempRotIndex = rotIndex;
+  let tempDate = new Date(baseD);
+
+  while (tempDate < startD) {
+    const r = rotationCycle[tempRotIndex];
+    if (!r.startsWith("off")) dutyCount++;
+    tempRotIndex = (tempRotIndex + 1) % rotationCycle.length;
+    tempDate.setDate(tempDate.getDate() + 1);
+  }
+
+  let rotTellers = [...tellers];
+  for (let i = 0; i < dutyCount; i++) {
+    rotTellers.unshift(rotTellers.pop());
+  }
+
+  /* -------------------------------
+     STEP 2 : Generate roster
+  -------------------------------- */
+  let html = "<table>";
+  let roster = {};
+  let lastShift = "";
+  let d = new Date(startD);
+  let currentRotIndex = tempRotIndex;
+
+  while (d <= endD) {
+    const ds = d.toISOString().split("T")[0];
+    const shift = rotationCycle[currentRotIndex];
+    roster[ds] = [];
+
+    /* -------- DAY -------- */
+    if (shift.startsWith("day")) {
+
+      if (lastShift !== "day") {
+        html += `<tr class="booth-header">
+                  <td colspan="${dayBoothsArr.length + 2}">Day Booths</td>
+                 </tr><tr><th>Date</th><th>Type</th>`;
+        dayBoothsArr.forEach(b => html += `<th>${b}</th>`);
+        html += "</tr>";
+        lastShift = "day";
+      }
+
+      html += `<tr class="day-duty"><td>${ds}</td><td>Day</td>`;
+      dayBoothsArr.forEach((b, i) => {
+        const t = rotTellers[i % rotTellers.length];
+        roster[ds].push({ teller: t, booth: b });
+        html += `<td>${t}</td>`;
+      });
+      html += "</tr>";
+
+      /* rotate teller ONLY on duty */
+      rotTellers.unshift(rotTellers.pop());
+    }
+
+    /* -------- NIGHT -------- */
+    else if (shift.startsWith("night")) {
+
+      if (lastShift !== "night") {
+        html += `<tr class="booth-header">
+                  <td colspan="${nightBoothsArr.length + 2}">Night Booths</td>
+                 </tr><tr><th>Date</th><th>Type</th>`;
+        nightBoothsArr.forEach(b => html += `<th>${b}</th>`);
+        html += "</tr>";
+        lastShift = "night";
+      }
+
+      html += `<tr class="night-duty"><td>${ds}</td><td>Night</td>`;
+      nightBoothsArr.forEach((b, i) => {
+        const t = rotTellers[i % rotTellers.length];
+        roster[ds].push({ teller: t, booth: b });
+        html += `<td>${t}</td>`;
+      });
+      html += "</tr>";
+
+      /* rotate teller ONLY on duty */
+      rotTellers.unshift(rotTellers.pop());
+    }
+
+    /* -------- OFF -------- */
+    else {
+
+      if (lastShift !== "off") {
+        html += `<tr class="booth-header">
+                  <td colspan="${dayBoothsArr.length + 2}">Off Days</td>
+                 </tr>
+                 <tr><th>Date</th><th>Type</th>
+                     <th colspan="${dayBoothsArr.length}">Status</th></tr>`;
+        lastShift = "off";
+      }
+
+      html += `<tr class="off-duty">
+                <td>${ds}</td>
+                <td>Off</td>
+                <td colspan="${dayBoothsArr.length}">-- Off Day --</td>
+               </tr>`;
+      /* ❌ NO teller rotation */
+    }
+
+    d.setDate(d.getDate() + 1);
+    currentRotIndex = (currentRotIndex + 1) % rotationCycle.length;
+  }
+
+  html += "</table>";
+  output.innerHTML = html;
+  lastGeneratedRoster = roster;
+  saveSettings();
+
+
+}
+
+ 
+
+/* Auto regenerate */
+startDate.addEventListener("change",()=>generateRoster(false));
+endDate.addEventListener("change",()=>generateRoster(false));
+
+/* Export */
+function exportToExcel(){ const t=document.querySelector("#output table"); if(!t) return alert("Generate roster first"); const wb=XLSX.utils.table_to_book(t,{sheet:"Roster"}); XLSX.writeFile(wb,"Gelanigama_Roster.xlsx"); }
+function exportToPDF(){ const table=document.querySelector("table"); if(!table) return alert("Please generate roster first!"); const startDate=document.getElementById("startDate").value; const endDate=document.getElementById("endDate").value; const title=`Gelanigama Interchange - ${startDate} - ${endDate} Roster`; const logoURL="https://images.seeklogo.com/logo-png/44/1/expressway-sri-lanka-logo-png_seeklogo-443925.png"; const printWindow=window.open('','width=900,height=1000'); printWindow.document.write(`<html><head><title>${title}</title><style>@page{size:A4 portrait;margin:5mm;}body{margin:0;padding-top:0;font-family:Arial;text-align:center;}.logo{width:55px;margin:0;}h2{margin:2px 0 8px 0;}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:5px;}th,td{border:1px solid #888;padding:4px;text-align:center;}th{background:#007bff;color:white;}.day-duty{background-color:#cde7f0;}.night-duty{background-color:#abd6de;}.off-duty{background-color:#f8d7da;}.booth-header{background:#ffc107;font-weight:bold;}</style></head><body><img src="${logoURL}" class="logo"><h2>${title}</h2>${table.outerHTML}</body></html>`); printWindow.document.close(); printWindow.focus(); setTimeout(()=>{ printWindow.print(); },400); }
+
+function pushToFirebase(){
+  if(!lastGeneratedRoster || Object.keys(lastGeneratedRoster).length === 0){
+    alert("❗ Please generate roster first");
+    return;
+  }
+  saveRosterSmart(lastGeneratedRoster);
+}
+
+
+</script>
+</body>
+</html>
