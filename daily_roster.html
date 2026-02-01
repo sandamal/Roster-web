@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+<link rel="manifest" href="manifest.json">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Daily Roster Viewer</title>
@@ -35,6 +36,7 @@ th{background:#abd6de}
 <button id="installBtn" style="display:none;float:right;margin-right:10px">
 📲 Install App
 </button>
+
 </header>
 
 
@@ -176,7 +178,9 @@ installBtn.addEventListener("click", async ()=>{
  deferredPrompt=null;
  installBtn.style.display="none";
 });
-
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
 </script>
 
 </body>
