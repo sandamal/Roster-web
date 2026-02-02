@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Firebase App (core) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<!-- Firestore -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+
+const firebaseConfig = {
+  apiKey: "AIzaSyANN1IPnC6vODqIWiOpZgWutnP-LlmH48s",
+  authDomain: "gelanigama-roster-team-a.firebaseapp.com",
+  databaseURL: "https://gelanigama-roster-team-a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "gelanigama-roster-team-a",
+  storageBucket: "gelanigama-roster-team-a.firebasestorage.app",
+  messagingSenderId: "806907017930",
+  appId: "1:806907017930:web:0c8265ba9beda797cc9233"
+
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+</script>
+
+<meta charset="UTF-8">
+<title>Generate Mode – Roster v9</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<style>
+body{ font-family:Segoe UI, Arial; background:#f4f6f9; margin:0; padding:20px; }
+.container{ max-width:1100px; margin:auto }
+.card{ background:#fff; padding:16px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,.08); margin-bottom:18px; }
+.header{ display:flex; justify-content:space-between; align-items:center; }
+.user-box{ display:flex; align-items:center; gap:10px; }
+.btn-signin{ background:#2563eb; color:#fff; padding:8px 14px; border-radius:10px; border:none; font-weight:600; cursor:pointer; }
+.btn-signout{ background:#dc2626; }
+.header h2{ color:#2f6fb1 }
+.row{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+label{ font-weight:600; min-width:120px }
+input,select{ padding:8px; border-radius:8px; border:1px solid #ccc; }
+
+.booth-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.booth-col{ border:1px solid #e5e7eb; border-radius:10px; padding:12px; }
+.booth-col h4{ margin:0 0 8px; color:#2f6fb1; }
+
+/* chips */
+.booth-chip-wrap{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; min-height: 40px; }
+.booth-chip{
+  touch-action: none; 
+  background:#e0f2fe;
+  color:#0369a1;
+  padding:6px 14px;
+  border-radius:20px;
+  font-size:13px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  cursor: grab;
+  user-select: none;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease;
+  border: 1px solid transparent;
+}
+
+/* Hold state effect */
+.booth-chip.holding {
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+  border-color: #2563eb;
+  z-index: 10;
+}
+
+.booth-chip.dragging{
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.booth-chip span{ cursor:pointer; font-weight:bold; padding-left: 5px; }
+.booth-input{ width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; margin-bottom: 5px; }
+
+button{ padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:600; }
+.btn-primary{ background:#2f6fb1; color:#fff }
+
+table{ width:100%; border-collapse:collapse; }
+th{ background:#2f6fb1; color:#fff; padding:8px; }
+td{ padding:8px; border-bottom:1px solid #e5e7eb; text-align:center; }
+.toggle button{ flex:1 }
+.active{ background:#2f6fb1; color:#fff }
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.4);
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+.modal-card{
+  background:#fff;
+  padding:20px;
+  border-radius:12px;
+  width:280px;
+}
+.modal-actions{
+  display:flex;
+  justify-content:space-between;
+  margin-top:12px;
+}
+
+
+@media print {
+  @page{ size: A4 portrait; margin: 8mm; }
+  body{ background:#fff; padding:0; }
+  .card, .header, .btn-primary, .toggle, .booth-input, .booth-col button { display:none !important; }
+  #previewCard{ display:block !important; box-shadow:none; padding:0; }
+  table{ width:100% !important; table-layout: fixed; border-collapse: collapse; }
+  th, td{ border:1px solid #000; padding:4px; font-size:11px; text-align:center; }
+  th{ background:#444 !important; color:#fff !important; }
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+  <div class="header">
+    <h2>Generate Mode – Roster (v9)</h2>
+    <div class="user-box">
+      <span id="userRoleLabel">Guest</span>
+      <button id="authBtn" class="btn-signin" onclick="openLogin()">Sign In</button>
+    </div>
+  </div>
+
+  <div class="card" id="teamCard" style="display:none">
+    <h3>Team Selection</h3>
+    <select id="teamSelect">
+      <option value="">-- Select Team --</option>
+      <option value="Team1">Team1</option>
+      <option value="Team2">Team2</option>
+      <option value="Team3">Team3</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label>Base Date</label><input type="date" id="baseDate">
+      <label>Base Rotation</label>
+  <select id="baseRotation">
+  <optgroup label="Day">
+    <option value="0">Day 1</option>
+    <option value="1">Day 2</option>
+    <option value="2">Day 3</option>
+    <option value="3">Day 4</option>
+  </optgroup>
+
+  <optgroup label="Night">
+    <option value="4">Night 1</option>
+    <option value="5">Night 2</option>
+    <option value="6">Night 3</option>
+    <option value="7">Night 4</option>
+  </optgroup>
+
+  <optgroup label="Off">
+    <option value="8">Off 1</option>
+    <option value="9">Off 2</option>
+    <option value="10">Off 3</option>
+    <option value="11">Off 4</option>
+  </optgroup>
+</select>
+ 
+      <label>Start Date</label><input type="date" id="startDate">
+      <label>End Date</label><input type="date" id="endDate">
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Day Booths</h3>
+    <div class="booth-grid">
+      <div class="booth-col" data-group="day8">
+        <h4>8 Hour</h4><div class="booth-chip-wrap"></div>
+        <input class="booth-input" placeholder="Add booth..." onkeydown="addChip(event,this)">
+        <button onclick="addChip({type:'blur'}, this.previousElementSibling)">+ Add</button>
+      </div>
+      <div class="booth-col" data-group="day6">
+        <h4>6 Hour</h4><div class="booth-chip-wrap"></div>
+        <input class="booth-input" placeholder="Add booth..." onkeydown="addChip(event,this)">
+        <button onclick="addChip({type:'blur'}, this.previousElementSibling)">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Night Booths</h3>
+    <div class="booth-grid">
+      <div class="booth-col" data-group="night8">
+        <h4>8 Hour</h4><div class="booth-chip-wrap"></div>
+        <input class="booth-input" placeholder="Add booth..." onkeydown="addChip(event,this)">
+        <button onclick="addChip({type:'blur'}, this.previousElementSibling)">+ Add</button>
+      </div>
+      <div class="booth-col" data-group="night6">
+        <h4>6 Hour</h4><div class="booth-chip-wrap"></div>
+        <input class="booth-input" placeholder="Add booth..." onkeydown="addChip(event,this)">
+        <button onclick="addChip({type:'blur'}, this.previousElementSibling)">+ Add</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+
+   <button class="admin-only" onclick="loadBoothSettingsFromCloud('Team1')">Load Team1 Booths</button>
+<button class="admin-only" onclick="loadBoothSettingsFromCloud('Team2')">Load Team2 Booths</button>
+<button class="admin-only" onclick="loadBoothSettingsFromCloud('Team3')">Load Team3 Booths</button>
+
+<button onclick="loadRosterFromCloud()">Load Selected Date</button>
+  </div>
+
+  <div class="card">
+    <div class="row"><label>Teller IDs</label><input id="tellers" style="flex:1" placeholder="171,164,173,167,163,190,170,197,192"></div>
+ <label>
+  <input type="checkbox" id="repeatRoster">
+  Repeat Roster (Night same as Day)
+</label>
+
+ </div>
+
+  <div class="card">
+    <button class="btn-primary" onclick="generateRoster()">Generate</button>
+    <button class="btn-primary" onclick="exportPDF()">Export PDF</button>
+<button class="btn-primary" onclick="syncRosterToCloud()">Sync to Cloud</button>
+
+
+  </div>
+
+  <div class="card" id="previewCard" style="display:none">
+    <h3>Roster Preview</h3>
+    <div class="row toggle">
+<button id="btn8h" onclick="setPreviewPattern('8h')">8 Hour</button>
+<button id="btn6h" onclick="setPreviewPattern('6h')" class="active">6 Hour</button>
+<button id="btnBoth" onclick="setPreviewPattern('both')">
+  8H / 6H Combined
+</button>
+
+
+    </div>
+    <table><tbody id="previewBody"></tbody></table>
+  </div>
+</div>
+
+<script>
+/* DRAG AND DROP LOGIC - WITH HOLD DELAY */
+let dragTimer;
+
+function enableChipDrag(chip) {
+  let dragging = false;
+
+  chip.addEventListener("pointerdown", e => {
+    if (e.target.tagName === 'SPAN') return; // Don't drag if clicking 'x'
+    
+    chip.classList.add("holding");
+    
+    dragTimer = setTimeout(() => {
+      dragging = true;
+      chip.classList.remove("holding");
+      chip.classList.add("dragging");
+      chip.setPointerCapture(e.pointerId);
+    }, 450); // 450ms Hold Time
+  });
+
+  chip.addEventListener("pointermove", e => {
+    if (!dragging) return;
+
+    const wrap = chip.closest(".booth-chip-wrap");
+    const after = getAfterChip(wrap, e.clientX, e.clientY);
+
+    if (after && after !== chip) {
+      wrap.insertBefore(chip, after);
+    } else if (!after) {
+      wrap.appendChild(chip);
+    }
+  });
+
+  chip.addEventListener("pointerup", e => {
+    clearTimeout(dragTimer);
+    chip.classList.remove("holding", "dragging");
+    if (dragging) {
+      dragging = false;
+      syncHiddenInputs(chip.closest(".booth-col"));
+    }
+  });
+
+  chip.addEventListener("pointercancel", () => {
+    clearTimeout(dragTimer);
+    chip.classList.remove("holding", "dragging");
+    dragging = false;
+  });
+}
+
+function getAfterChip(container, x, y) {
+  const chips = [...container.querySelectorAll(".booth-chip:not(.dragging)")];
+  return chips.reduce((closest, chip) => {
+    const box = chip.getBoundingClientRect();
+    const offsetX = x - (box.left + box.width / 2);
+    const offsetY = y - (box.top + box.height / 2);
+
+    // Checks both vertical and horizontal proximity for wrapped layouts
+    if (Math.abs(offsetY) < box.height && offsetX < 0 && offsetX > closest.offset) {
+      return { offset: offsetX, element: chip };
+    } else if (offsetY < 0 && offsetY > closest.offsetY) {
+      return { offset: closest.offset, offsetY: offsetY, element: chip };
+    }
+    return closest;
+  }, { offset: -Infinity, offsetY: -Infinity }).element;
+}
+
+function syncHiddenInputs(col) {
+  col.querySelectorAll("input.booth").forEach(i => i.remove());
+  const wrap = col.querySelector(".booth-chip-wrap");
+  wrap.querySelectorAll(".booth-chip").forEach(chip => {
+    const val = chip.childNodes[0].nodeValue.trim();
+    const hidden = document.createElement("input");
+    hidden.type = "hidden";
+    hidden.className = "booth";
+    hidden.value = val;
+    col.appendChild(hidden);
+  });
+}
+
+function addChip(e, input) {
+  if (e.type === "keydown" && e.key !== "Enter") return;
+  const val = input.value.trim();
+  if (!val) return;
+  const col = input.closest(".booth-col");
+  const wrap = col.querySelector(".booth-chip-wrap");
+  const chip = document.createElement("div");
+  chip.className = "booth-chip";
+  chip.innerHTML = `${val} <span>×</span>`;
+  chip.querySelector("span").onclick = () => { chip.remove(); syncHiddenInputs(col); };
+  enableChipDrag(chip);
+  wrap.appendChild(chip);
+  input.value = "";
+  syncHiddenInputs(col);
+}
+
+/* ROSTER CORE LOGIC */
+const rotationCycle = ["day","day","day","day","night","night","night","night","off","off","off","off"];
+let previewRoster = {};
+let previewPattern = "6h";
+
+/* ------------ MAIN GENERATE ------------ */
+/* =========================
+   GENERATE ROSTER FUNCTION
+========================= */
+function generateRoster() {
+
+  const startStr = document.getElementById("startDate").value;
+  const endStr   = document.getElementById("endDate").value;
+  if (!startStr || !endStr) { alert("Select start & end dates"); return; }
+
+  const baseDateStr = document.getElementById("baseDate").value || startStr;
+  const baseD  = new Date(baseDateStr);
+  const startD = new Date(startStr);
+  const endD   = new Date(endStr);
+
+  const tellers = document.getElementById("tellers").value
+    .split(",").map(t => t.trim()).filter(Boolean);
+  if (!tellers.length) { alert("Enter teller IDs"); return; }
+
+  const repeatRoster = document.getElementById("repeatRoster").checked;
+  const rotationCycle = ["day","day","day","day","night","night","night","night","off","off","off","off"];
+  let rotIdx = parseInt(document.getElementById("baseRotation").value);
+
+  /* -------- PRE-ROTATE TELLERS (BASE → START DATE) -------- */
+  let dutyCount = 0;
+  let tmpDate = new Date(baseD);
+  let tmpRot  = rotIdx;
+  while (tmpDate < startD) {
+    if (rotationCycle[tmpRot] !== "off") dutyCount++;
+    tmpRot = (tmpRot + 1) % rotationCycle.length;
+    tmpDate.setDate(tmpDate.getDate() + 1);
+  }
+
+  let rotTellers = [...tellers];
+  for (let i = 0; i < dutyCount; i++) rotTellers.unshift(rotTellers.pop());
+
+  /* -------- BUILD PREVIEW ROSTER -------- */
+  previewRoster = {};
+  let cRot = tmpRot;
+  let lastDayTellers = [];
+  let nightTellers = []; // persistent night tellers for Repeat Roster
+
+  for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+
+    const dateStr = d.toISOString().split("T")[0];
+    const dutyType = rotationCycle[cRot]; // day / night / off
+    previewRoster[dateStr] = [];
+
+    if (dutyType === "off") {
+      previewRoster[dateStr].push({ shift: "OFF" });
+    } 
+    else if (dutyType === "day") {
+
+      // Assign tellers to booths
+      const booths = previewPattern === "6h" ? collect("day6")
+                  : previewPattern === "8h" ? collect("day8")
+                  : collect("dayboth");
+
+      const maxLen = Math.max(rotTellers.length, booths.length);
+      for (let i = 0; i < maxLen; i++) {
+        previewRoster[dateStr].push({
+          shift: "DAY",
+          booth8: previewPattern==="both"? booths[i]?.booth8 || "" : "",
+          booth6: previewPattern==="both"? booths[i]?.booth6 || "" : "",
+          booth : previewPattern!=="both"? booths[i] || "" : "",
+          teller: rotTellers[i % rotTellers.length]
+        });
+      }
+
+      lastDayTellers = [...rotTellers];  // store last day tellers
+      rotTellers.unshift(rotTellers.pop()); // rotate for next day
+
+      if (repeatRoster && nightTellers.length === 0) {
+        nightTellers = [...lastDayTellers]; // initialize night tellers on first day
+      }
+
+    }
+    else if (dutyType === "night") {
+
+      let currentTellers = repeatRoster ? [...nightTellers] : [...rotTellers];
+
+      // Assign tellers to booths
+      const booths = previewPattern === "6h" ? collect("night6")
+                  : previewPattern === "8h" ? collect("night8")
+                  : collect("nightboth");
+
+      const maxLen = Math.max(currentTellers.length, booths.length);
+      for (let i = 0; i < maxLen; i++) {
+        previewRoster[dateStr].push({
+          shift: "NIGHT",
+          booth8: previewPattern==="both"? booths[i]?.booth8 || "" : "",
+          booth6: previewPattern==="both"? booths[i]?.booth6 || "" : "",
+          booth : previewPattern!=="both"? booths[i] || "" : "",
+          teller: currentTellers[i % currentTellers.length]
+        });
+      }
+
+      if (repeatRoster) {
+        nightTellers.unshift(nightTellers.pop()); // rotate night tellers
+      } else {
+        rotTellers.unshift(rotTellers.pop()); // normal rotation
+      }
+    }
+
+    cRot = (cRot + 1) % rotationCycle.length;
+  }
+
+  renderPreview();
+}
+
+
+
+
+
+function collect(group) { return [...document.querySelectorAll(`[data-group="${group}"] .booth`)].map(b=>b.value); }
+
+
+function renderPreview(){
+
+  const body = document.getElementById("previewBody");
+  body.innerHTML = "";
+  let lastShift = "";
+
+  Object.keys(previewRoster).forEach(date=>{
+
+    const rows = previewRoster[date];
+    const shift = rows[0].shift;
+
+    if(shift !== lastShift){
+
+      let headerCells = "";
+
+      if(shift === "OFF"){
+        headerCells = "<th>Status</th>";
+      }
+      else if(previewPattern === "both"){
+        headerCells = rows.map(r =>
+          `<th>${r.booth8 || "-"} / ${r.booth6 || "-"}</th>`
+        ).join("");
+      }
+      else{
+        headerCells = rows.map(r=>`<th>${r.booth}</th>`).join("");
+      }
+
+      body.innerHTML += `
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          ${headerCells}
+        </tr>
+      `;
+
+      lastShift = shift;
+    }
+
+    let rowCells = "";
+
+    if(shift === "OFF"){
+      rowCells = "<td>-- Off --</td>";
+    }else{
+      rowCells = rows.map(r=>`<td>${r.teller}</td>`).join("");
+    }
+
+    body.innerHTML += `
+      <tr>
+        <td>${date}</td>
+        <td>${shift}</td>
+        ${rowCells}
+      </tr>
+    `;
+  });
+
+  document.getElementById("previewCard").style.display = "block";
+}
+
+
+function setPreviewPattern(p){
+
+  previewPattern = p;
+
+  // remove active from all
+  document.getElementById("btn8h").classList.remove("active");
+  document.getElementById("btn6h").classList.remove("active");
+  document.getElementById("btnBoth").classList.remove("active");
+
+  // add active to selected
+  if(p === "8h")  document.getElementById("btn8h").classList.add("active");
+  if(p === "6h")  document.getElementById("btn6h").classList.add("active");
+  if(p === "both")document.getElementById("btnBoth").classList.add("active");
+
+  generateRoster();
+}
+
+function openLogin() { document.getElementById("loginModal").style.display="flex"; }
+function closeLogin() { document.getElementById("loginModal").style.display="none"; }
+function doLogin() { document.getElementById("teamCard").style.display="block"; closeLogin(); }
+function exportPDF() { window.print(); }
+</script>
+<script>
+const passwords = {
+  Admin : "admin123",
+  Team1 : "team1",
+  Team2 : "team2",
+  Team3 : "team3"
+};
+
+let currentUser = {
+  role : "Guest"
+};
+
+function openLogin(){
+  document.getElementById("loginModal").style.display="flex";
+}
+function closeLogin(){
+  document.getElementById("loginModal").style.display="none";
+}
+
+function doLogin(){
+  const role = loginRole.value;
+  const pwd  = loginPassword.value;
+
+  if(passwords[role] !== pwd){
+    alert("Invalid password");
+    return;
+  }
+
+  currentUser.role = role;
+  localStorage.setItem("userRole", role);
+
+  closeLogin();
+  applyRoleUI();
+  loadBaseRotationFromCloud(role);
+
+}
+
+function logout(){
+  localStorage.removeItem("userRole");
+  currentUser.role="Guest";
+  applyRoleUI();
+}
+
+function applyRoleUI(){
+
+  const role = currentUser.role;
+  userRoleLabel.innerText = role;
+
+  if(role==="Guest"){
+    authBtn.innerText="Sign In";
+    authBtn.className="btn-signin";
+    authBtn.onclick=openLogin;
+
+    teamCard.style.display="none";
+  }
+  else{
+    authBtn.innerText="Sign Out";
+    authBtn.className="btn-signin btn-signout";
+    authBtn.onclick=logout;
+
+    teamCard.style.display="block";
+
+    if(role==="Admin"){
+      teamSelect.disabled=false;
+    }
+    else{
+      teamSelect.value=role;
+      teamSelect.disabled=true;
+    }
+  }
+document.querySelectorAll(".admin-only").forEach(btn=>{
+  btn.style.display = (role==="Admin") ? "inline-block" : "none";
+});
+
+
+}
+window.addEventListener("DOMContentLoaded", () => {
+  setPreviewPattern("6h");
+});
+
+window.onload=()=>{
+  const saved = localStorage.getItem("userRole");
+  if(saved) currentUser.role=saved;
+  applyRoleUI();
+};
+
+
+function syncRosterToCloud() {
+
+  if(currentUser.role === "Guest") {
+    alert("Please login as a team to sync!");
+    return;
+  }
+let activeTeam = currentUser.role==="Admin"
+  ? teamSelect.value
+  : currentUser.role;
+
+if(!activeTeam || activeTeam.trim()===""){
+  alert("⚠ Please select team first");
+  return;
+}
+
+let collectionName = activeTeam.toLowerCase()+"Roster";
+
+
+
+  if(!previewRoster || Object.keys(previewRoster).length===0){
+    alert("Generate roster first!");
+    return;
+  }
+
+  const createdAt = firebase.firestore.Timestamp.fromDate(new Date());
+  const collectionRef = db.collection(collectionName);
+  const promises = [];
+
+  Object.keys(previewRoster).forEach(date=>{
+
+    const rows = previewRoster[date];
+    const shift = rows[0]?.shift?.toLowerCase();
+
+    /* ================= OFF DAY ================= */
+    if(!shift || shift==="off"){
+
+      promises.push(
+        collectionRef.doc(date).set({
+          tellers: [],
+          offDay:true,
+          createdAt
+        })
+      );
+
+      return;
+    }
+
+    /* ============ WORKING DAY ============ */
+
+    // collect booth settings ONCE
+    const booths6 = collect(shift+"6");
+    const booths8 = collect(shift+"8");
+
+    const dayTellers = rows.map((r,i)=>({
+
+      teller : r.teller || "",
+
+      booth6 : booths6[i] || "",
+
+      booth8 : booths8[i] || "",
+
+      shift  : shift
+
+    }));
+
+    promises.push(
+      collectionRef.doc(date).set({
+        tellers: dayTellers,
+        offDay:false,
+        createdAt
+      })
+    );
+
+  });
+ saveBoothSettingsToCloud(activeTeam);
+ saveBaseRotationToCloud(activeTeam);
+
+
+  Promise.all(promises)
+    .then(()=>alert(`Roster synced to ${collectionName} ✔`))
+    .catch(err=>alert("Sync error: "+err.message));
+}
+
+function loadRosterFromCloud() {
+
+
+  if(currentUser.role === "Guest") {
+    alert("Login as team first!");
+    return;
+  }
+
+  const date = document.getElementById("startDate").value;
+  if(!date){
+    alert("Select a date first!");
+    return;
+  }
+
+  let collectionName="";
+  if(currentUser.role==="Team1") collectionName="team1Roster";
+  if(currentUser.role==="Team2") collectionName="team2Roster";
+  if(currentUser.role==="Team3") collectionName="team3Roster";
+
+  db.collection(collectionName).doc(date).get().then(doc=>{
+
+    if(!doc.exists){
+      alert("No roster found for "+date);
+      return;
+    }
+
+    const data = doc.data().tellers;
+
+    // Clear existing UI
+    clearAllBooths();
+    clearTellers();
+
+    const tellerArr=[];
+ if(data.offDay){
+  alert(date+" is OFF day");
+  return;
+}
+
+data.forEach(r=>{
+
+  tellerArr.push(r.teller);
+
+  const shift = (r.shift || "day").toLowerCase();
+
+  if(r.booth6) addBoothChip(shift+"6", r.booth6);
+  if(r.booth8) addBoothChip(shift+"8", r.booth8);
+
+});
+
+fillTellers(tellerArr);
+
+ 
+    alert("Roster loaded from cloud ✔");
+
+  }).catch(e=>{
+    alert(e.message);
+  });
+}
+function clearAllBooths(){
+
+  // remove visual chips
+  document.querySelectorAll(".booth-chip-wrap").forEach(w=>w.innerHTML="");
+
+  // remove hidden inputs
+  document.querySelectorAll(".booth").forEach(b=>b.remove());
+}
+
+
+function clearTellers(){
+  document.getElementById("tellers").value="";
+}
+
+function fillTellers(arr){
+  document.getElementById("tellers").value = arr.join(",");
+}
+
+
+// booth chip creator
+function addBoothChip(group, val){
+
+
+  const col = document.querySelector(`[data-group="${group}"]`);
+  if(!col) return;
+
+  const wrap = col.querySelector(".booth-chip-wrap");
+
+  const chip = document.createElement("div");
+  chip.className = "booth-chip";
+  chip.innerHTML = `${val} <span>×</span>`;
+
+  chip.querySelector("span").onclick = () => {
+    chip.remove();
+    syncHiddenInputs(col);
+  };
+
+  enableChipDrag(chip);
+
+  wrap.appendChild(chip);
+
+  syncHiddenInputs(col);
+}
+
+function saveBoothSettingsToCloud(team){
+
+  if(!team){
+    alert("Team missing");
+    return;
+  }
+
+  const boothCollection = team.toLowerCase()+"BoothSettings";
+
+  const settings={
+
+    day6   : collect("day6"),
+    day8   : collect("day8"),
+    night6 : collect("night6"),
+    night8 : collect("night8"),
+
+    updatedAt : firebase.firestore.Timestamp.fromDate(new Date())
+  };
+
+  db.collection(boothCollection)
+    .doc("config")
+    .set(settings)
+
+    .then(()=>alert("Booth settings saved ✔"))
+    .catch(e=>alert(e.message));
+}
+
+function loadBoothSettingsFromCloud(team){
+if(currentUser.role!=="Admin"){
+  alert("Admin only feature");
+  return;
+}
+  let boothCollection="";
+
+  if(team==="Team1") boothCollection="team1BoothSettings";
+  if(team==="Team2") boothCollection="team2BoothSettings";
+  if(team==="Team3") boothCollection="team3BoothSettings";
+
+  if(!boothCollection){
+    alert("Invalid team");
+    return;
+  }
+
+  db.collection(boothCollection)
+    .doc("config")
+    .get()
+
+    .then(doc=>{
+
+      if(!doc.exists){
+        alert("No booth settings for "+team);
+        return;
+      }
+
+      clearAllBooths();
+
+      const d=doc.data();
+
+      (d.day6||[]).forEach(b=>addBoothChip("day6",b));
+      (d.day8||[]).forEach(b=>addBoothChip("day8",b));
+      (d.night6||[]).forEach(b=>addBoothChip("night6",b));
+      (d.night8||[]).forEach(b=>addBoothChip("night8",b));
+
+      alert("Booth settings loaded from "+team+" ✔");
+
+    })
+
+    .catch(e=>alert(e.message));
+}
+
+function loadBaseRotationFromCloud(team){
+
+  if(!team) return;
+
+  db.collection(team.toLowerCase()+"BaseSettings")
+    .doc("config")
+    .get()
+    .then(doc=>{
+      if(!doc.exists) return;
+
+      const d = doc.data();
+
+      if(d.baseDate) document.getElementById("baseDate").value = d.baseDate;
+      if(d.baseRotation) document.getElementById("baseRotation").value = d.baseRotation;
+      if(d.tellers && Array.isArray(d.tellers)) document.getElementById("tellers").value = d.tellers.join(",");
+      
+    })
+    .catch(e=>console.log(e.message));
+}
+
+function saveBaseRotationToCloud(team){
+
+  if(!team) return;
+
+  const baseSettings = {
+    baseDate     : document.getElementById("baseDate").value,
+    baseRotation : document.getElementById("baseRotation").value,
+    tellers      : document.getElementById("tellers").value.split(",").map(t=>t.trim()).filter(Boolean),
+    updatedAt    : firebase.firestore.Timestamp.fromDate(new Date())
+  };
+
+  db.collection(team.toLowerCase()+"BaseSettings")
+    .doc("config")
+    .set(baseSettings)
+    .catch(e=>console.log(e.message));
+}
+
+
+</script>
+
+<div id="loginModal" class="modal">
+  <div class="modal-card">
+    <h3>Sign In</h3>
+
+    <label>User Role</label>
+    <select id="loginRole">
+      <option value="Admin">Admin</option>
+      <option value="Team1">Team1</option>
+      <option value="Team2">Team2</option>
+      <option value="Team3">Team3</option>
+    </select>
+
+    <label>Password</label>
+    <input type="password" id="loginPassword">
+
+    <div class="modal-actions">
+      <button onclick="doLogin()">Login</button>
+      <button onclick="closeLogin()">Cancel</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
